@@ -60,7 +60,7 @@ class Driver;
         for (int j = 0; j < num_transactions; j++)
         begin
             m.get(t);
-            t.display("Driver");
+            //t.display("Driver");
         end
     endtask
 endclass
@@ -97,9 +97,11 @@ class Scoreboard;
     //Variables for reference model
     parameter n = 8;
     logic exp_f, exp_e;
-    bit [n - 1:0] exp_op;
-    bit [7:0] ref_fifo[$];
+    //bit [n - 1:0] exp_op;
+    bit [n - 1:0] ref_fifo[$];
     integer errors = 0;
+    bit [n - 1:0] exp_op_pending;
+    bit pending = 0;
 
     function new (int num_transactions, mailbox #(Transaction) m2s);
         this.num_transactions = num_transactions;
@@ -108,25 +110,42 @@ class Scoreboard;
 
     task run();
         Transaction t;
+
+        //$display("SB starting, initial queue_size=%0d", ref_fifo.size());
+        
         for (int l = 0; l < num_transactions; l++)
         begin
             m2s.get(t);
-            if (t.wrt_en && ref_fifo.size() < n)
-                ref_fifo.push_back(t.ip);
-            if (t.rd_en && ref_fifo.size() > 0)
+            //$display("SB got: rd_en=%0d t.op=%b  pending=%0d exp_op_pending=%b  queue_size=%0d", t.rd_en, t.op, pending, exp_op_pending, ref_fifo.size());
+
+            //Check if a pending value is there or not
+            if (pending)
             begin
-                exp_op = ref_fifo.pop_front();
-                if (exp_op !== t.op)
+                if (exp_op_pending !== t.op)
                 begin
-                    $display ("mismatch: expected = %b, got = %b at time t = %0t", exp_op, t.op, $time);
-                    errors = errors + 1;
+                    errors++;
+                    $display ("mismatch: expected = %b, got = %b", exp_op_pending, t.op);
                 end
+                pending = 0;
             end
 
             exp_e = (ref_fifo.size() == 0);
             exp_f = (ref_fifo.size() == n);
             if (exp_e !== t.e || exp_f !== t.f)
-                errors = errors + 1;
+            begin
+                errors++;
+                $display("flag mismatch: exp_e=%b e=%b  exp_f=%b f=%b  queue_size=%0d", exp_e, t.e, exp_f, t.f, ref_fifo.size());
+            end
+            
+            if (t.wrt_en && ref_fifo.size() < n)
+                ref_fifo.push_back(t.ip);
+            
+            if (t.rd_en && ref_fifo.size() > 0)
+            begin
+                exp_op_pending = ref_fifo.pop_front();
+                pending = 1;
+                //$display("SB popped: new exp_op_pending=%b, new queue_size=%0d", exp_op_pending, ref_fifo.size());
+            end
         end
     endtask
 
@@ -219,7 +238,7 @@ module FIFO_tb_sv;
                 begin
                     Transaction t;
                     drv.m.get(t);
-                    t.display ("Driver");
+                    //t.display ("Driver");
                     drive_transaction(t);
                 end
             end
@@ -233,7 +252,6 @@ module FIFO_tb_sv;
                 for (int a = 0; a < mn.num_transactions; a++)
                 begin
                     @ (posedge clk);
-                    #1;
                     t_monitor = new ();
                     capture_transaction (t_monitor);
                     mn.m2s.put (t_monitor);
