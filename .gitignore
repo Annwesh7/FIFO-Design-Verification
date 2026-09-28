@@ -1,0 +1,29 @@
+# Simulator artifacts
+*.vcd
+*.wlf
+*.asdb
+*.log
+work/
+transcript
+vsim.wlf
+csrc/
+simv*
+*.daidir/
+
+# EDA Playground junk
+dataset.asdb
+library.cfg
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editor junk
+.vscode/
+
+# Word temporary lock files
+~$*
+~WRL*.tmp
+
+# Optional: exclude Word docs entirely if you don't want them versioned
+*.docx
