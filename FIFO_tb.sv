@@ -2,7 +2,7 @@ class Transaction;
     bit [7:0] ip;
     bit       wrt_en;
     bit       rd_en;
-    bit       rst;
+    bit       rst;      //For asserting reset in the middle of the operation
 
     logic [7:0] op;
     logic       f;
@@ -119,7 +119,7 @@ class Scoreboard;
             m2s.get(t);
             //$display("SB got: rd_en=%0d t.op=%b  pending=%0d exp_op_pending=%b  queue_size=%0d", t.rd_en, t.op, pending, exp_op_pending, ref_fifo.size());
 
-            //Check if reset is asserted or not
+            //Check if reset is asserted or not in the middle of the operation
             if (!t.rst)
             begin
                 pending = 0;
@@ -130,6 +130,22 @@ class Scoreboard;
             end
             else
             begin
+                //Check for X/Z values on flags (e/f)
+                if ($isunknown(t.e) || $isunknown(t.f))
+                begin
+                    errors++;
+                    $display ("X/Z on flags: e = %b f = %b", t.e, t.f);
+                end
+
+                /*
+                //Check for X/Z values in output when rd_en = 1 and FIFO is not empty
+                if (t.rd_en && !t.e && $isunknown(t.op))
+                begin
+                    errors++;
+                    $display ("X/Z in output: op = %b", t.op);
+                end
+                */
+
                 //Check if a pending value is there or not
                 if (pending)
                 begin
@@ -195,7 +211,7 @@ module FIFO_tb_sv;
         ip = t.ip;
         wrt_en = t.wrt_en;
         rd_en = t.rd_en;
-        rst = t.rst;
+        rst = t.rst;        //For asserting reset in the middle of the operation
         @ (posedge clk);
         #1;
     endtask
@@ -205,7 +221,7 @@ module FIFO_tb_sv;
         t.ip = ip;
         t.wrt_en = wrt_en;
         t.rd_en = rd_en;
-        t.rst = rst;
+        t.rst = rst;        //For the monitor to capture that reset has been asserted
         t.op = op;
         t.e = e;
         t.f = f;
