@@ -2,12 +2,13 @@ class Transaction;
     bit [7:0] ip;
     bit       wrt_en;
     bit       rd_en;
+    bit       rst;
 
     logic [7:0] op;
     logic       f;
     logic       e;
 
-    function new (bit [7:0] ip = 0, bit wrt_en = 0, bit rd_en = 0);
+    function new (bit [7:0] ip = 0, bit wrt_en = 0, bit rd_en = 0, bit rst = 1);
         this.ip = ip;
         this.wrt_en = wrt_en;
         this.rd_en = rd_en;
@@ -118,33 +119,45 @@ class Scoreboard;
             m2s.get(t);
             //$display("SB got: rd_en=%0d t.op=%b  pending=%0d exp_op_pending=%b  queue_size=%0d", t.rd_en, t.op, pending, exp_op_pending, ref_fifo.size());
 
-            //Check if a pending value is there or not
-            if (pending)
+            //Check if reset is asserted or not
+            if (!t.rst)
             begin
-                if (exp_op_pending !== t.op)
+                pending = 0;
+                exp_op_pending = 0;
+                exp_f = 0;
+                exp_e = 1;
+                ref_fifo = {};
+            end
+            else
+            begin
+                //Check if a pending value is there or not
+                if (pending)
+                begin
+                    if (exp_op_pending !== t.op)
+                    begin
+                        errors++;
+                        $display ("mismatch: expected = %b, got = %b", exp_op_pending, t.op);
+                    end
+                    pending = 0;
+                end
+
+                exp_e = (ref_fifo.size() == 0);
+                exp_f = (ref_fifo.size() == n);
+                if (exp_e !== t.e || exp_f !== t.f)
                 begin
                     errors++;
-                    $display ("mismatch: expected = %b, got = %b", exp_op_pending, t.op);
+                    $display("flag mismatch: exp_e=%b e=%b  exp_f=%b f=%b  queue_size=%0d", exp_e, t.e, exp_f, t.f, ref_fifo.size());
                 end
-                pending = 0;
-            end
-
-            exp_e = (ref_fifo.size() == 0);
-            exp_f = (ref_fifo.size() == n);
-            if (exp_e !== t.e || exp_f !== t.f)
-            begin
-                errors++;
-                $display("flag mismatch: exp_e=%b e=%b  exp_f=%b f=%b  queue_size=%0d", exp_e, t.e, exp_f, t.f, ref_fifo.size());
-            end
             
-            if (t.wrt_en && ref_fifo.size() < n)
-                ref_fifo.push_back(t.ip);
+                if (t.wrt_en && ref_fifo.size() < n)
+                    ref_fifo.push_back(t.ip);
             
-            if (t.rd_en && ref_fifo.size() > 0)
-            begin
-                exp_op_pending = ref_fifo.pop_front();
-                pending = 1;
-                //$display("SB popped: new exp_op_pending=%b, new queue_size=%0d", exp_op_pending, ref_fifo.size());
+                if (t.rd_en && ref_fifo.size() > 0)
+                begin
+                    exp_op_pending = ref_fifo.pop_front();
+                    pending = 1;
+                    //$display("SB popped: new exp_op_pending=%b, new queue_size=%0d", exp_op_pending, ref_fifo.size());
+                end
             end
         end
     endtask
@@ -182,6 +195,7 @@ module FIFO_tb_sv;
         ip = t.ip;
         wrt_en = t.wrt_en;
         rd_en = t.rd_en;
+        rst = t.rst;
         @ (posedge clk);
         #1;
     endtask
@@ -191,6 +205,7 @@ module FIFO_tb_sv;
         t.ip = ip;
         t.wrt_en = wrt_en;
         t.rd_en = rd_en;
+        t.rst = rst;
         t.op = op;
         t.e = e;
         t.f = f;
