@@ -1,8 +1,8 @@
 class Transaction;
-    bit [7:0] ip;
-    bit       wrt_en;
-    bit       rd_en;
-    bit       rst;      //For asserting reset in the middle of the operation
+    rand bit [7:0] ip;          //For randomizing the values
+    rand bit       wrt_en;      //For randomizing the values
+    rand bit       rd_en;       //For randomizing the values
+    rand bit       rst;         //For asserting reset in the middle of the operation
 
     logic [7:0] op;
     logic       f;
@@ -12,11 +12,18 @@ class Transaction;
         this.ip = ip;
         this.wrt_en = wrt_en;
         this.rd_en = rd_en;
+        this.rst = rst;
     endfunction
 
     function void display (string tag = "");        //for labelling each display call by "Driver" or "Monitor"
-        $display ("ip = %b, op = %b, wrt_en = %0d, rd_en = %0d, f = %0d, e = %0d", this.ip, this.op, this.wrt_en, this.rd_en, this.f, this.e);
+        $display ("ip = %b, op = %b, rst = %0d, wrt_en = %0d, rd_en = %0d, f = %0d, e = %0d", this.ip, this.op, this.rst, this.wrt_en, this.rd_en, this.f, this.e);
     endfunction
+
+    //Constraints
+    constraint c1 {wrt_en dist {0 := 30, 1 := 70};
+                    rd_en dist {0 := 70, 1 := 30};}
+    constraint c2 {!(wrt_en && rd_en);}
+    constraint c3 {rst dist {0 := 5, 1 := 95};}
 endclass
 
 class Generator;
@@ -31,19 +38,23 @@ class Generator;
     task run();
         Transaction t;
 
-        //For writing to the FIFO
-        for (int i = 0; i < num_transactions/2; i++)
+        for (int i = 0; i < num_transactions; i++)
         begin
-            t = new (.wrt_en(1'b1), .rd_en(1'b0), .ip(i));
-            m.put(t);
+            t = new();
+            if (t.randomize())
+                m.put(t);
+            else
+                $display ("Randomization failed");
         end
 
+        /*
         //For reading from the FIFO
         for (int b = 0; b < num_transactions/2; b++)
         begin
             t = new (.wrt_en(1'b0), .rd_en(1'b1));
             m.put(t);
         end
+        */
     endtask
 endclass
 
@@ -130,6 +141,8 @@ class Scoreboard;
             end
             else
             begin
+                int size_at_start = ref_fifo.size();    //Both branches refer the pre-cycle state
+
                 //Check for X/Z values on flags (e/f)
                 if ($isunknown(t.e) || $isunknown(t.f))
                 begin
@@ -157,18 +170,18 @@ class Scoreboard;
                     pending = 0;
                 end
 
-                exp_e = (ref_fifo.size() == 0);
-                exp_f = (ref_fifo.size() == n);
+                exp_e = (size_at_start == 0);
+                exp_f = (size_at_start == n);
                 if (exp_e !== t.e || exp_f !== t.f)
                 begin
                     errors++;
                     $display("flag mismatch: exp_e=%b e=%b  exp_f=%b f=%b  queue_size=%0d", exp_e, t.e, exp_f, t.f, ref_fifo.size());
                 end
             
-                if (t.wrt_en && ref_fifo.size() < n)
+                if (t.wrt_en && size_at_start < n)
                     ref_fifo.push_back(t.ip);
             
-                if (t.rd_en && ref_fifo.size() > 0)
+                if (t.rd_en && size_at_start > 0)
                 begin
                     exp_op_pending = ref_fifo.pop_front();
                     pending = 1;
@@ -249,10 +262,10 @@ module FIFO_tb_sv;
         //Initializing objects
         m = new ();
         m2s = new ();
-        gen = new (20,m);
-        drv = new (m, 20);
-        mn = new (m2s, 20);
-        sb = new (20,m2s);
+        gen = new (260,m);
+        drv = new (m, 260);
+        mn = new (m2s, 260);
+        sb = new (260,m2s);
         
         $dumpfile ("FIFO_sv.vcd");
         $dumpvars (0, FIFO_tb_sv);
