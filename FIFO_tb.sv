@@ -317,10 +317,10 @@ module FIFO_tb_sv;
         //Initializing objects
         m = new ();
         m2s = new ();
-        gen = new (260,m);
-        drv = new (m, 260);
-        mn = new (m2s, 260);
-        sb = new (260,m2s);
+        gen = new (1500,m);
+        drv = new (m, 1500);
+        mn = new (m2s, 1500);
+        sb = new (1500,m2s);
         
         $dumpfile ("FIFO_sv.vcd");
         $dumpvars (0, FIFO_tb_sv);
