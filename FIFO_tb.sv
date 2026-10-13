@@ -22,7 +22,7 @@ class Transaction;
     //Constraints
     constraint c1 {wrt_en dist {0 := 30, 1 := 70};
                     rd_en dist {0 := 70, 1 := 30};}
-    constraint c2 {!(wrt_en && rd_en);}
+    //constraint c2 {!(wrt_en && rd_en);}
     constraint c3 {rst dist {0 := 5, 1 := 95};}
 endclass
 
@@ -80,21 +80,76 @@ endclass
 class Monitor;
     mailbox #(Transaction) m2s;
     int num_transactions;
+    //Variables for covergroup
+    bit [7:0] cp_occupancy;
+    bit [1:0] cp_operation;
+    bit       cp_boundary;
+    bit       cp_reset;
+    bit       cp_wrt_en;        //for write when full
+    bit       cp_rd_en;         //for read when empty
+    bit       cp_f;             //for the iff condition on write when full
+    bit       cp_e;             //for the iff condition on read when empty
+    //enum bit [1:0] {idle, read, write, simul_rw} operation;
+
+    covergroup cg;
+        occupancy: coverpoint cp_occupancy {
+            bins empty = {0};
+            bins partial = {[1:7]};
+            bins full = {8};
+        }
+
+        operation_type: coverpoint cp_operation {
+            bins idle = {2'b00};
+            bins read = {2'b01};
+            bins write = {2'b10};
+            bins simultaneous_rw = {2'b11};
+        }
+        //boundary_conditions: coverpoint cp_boundary {}
+        write_when_full: coverpoint cp_wrt_en iff (cp_f){
+            bins hit = {1};
+        }
+        read_when_empty: coverpoint cp_rd_en iff (cp_e){
+            bins hit = {1};
+        }
+        reset_coverage: coverpoint cp_reset {
+            bins active = {0};      //active low
+            bins inactive = {1};
+        }
+
+
+        occupancy_operation_cross: cross occupancy, operation_type;
+        reset_occupancy_cross: cross reset_coverage, occupancy;
+    endgroup
 
     function new (mailbox #(Transaction) m2s, int num_transactions);
         this.m2s = m2s;
         this.num_transactions = num_transactions;
+        cg = new();
     endfunction
 
     /*
+    //Commented out until virtual interfaces are used
     task run();
         Transaction t;
+
         for (int k = 0; k < num_transactions; k++)
         begin
             @ (posedge clk);
             #1;
             t = new();
             capture_transaction(t);
+
+            if (t.e && !t.f)
+                cp_occupancy = 0;
+            else if (t.f && !t.e)
+                cp_occupancy = 8;
+            else
+                cp_occupancy = 1;
+            
+            cp_operation = {t.wrt_en, t.rd_en};
+            cp_reset = t.rst;
+            cg.sample();
+        
             m2s.put(t);
             t.display("Monitor");
         end
@@ -298,6 +353,24 @@ module FIFO_tb_sv;
                     @ (posedge clk);
                     t_monitor = new ();
                     capture_transaction (t_monitor);
+                    //Computing coverge sampling variables
+                    if (t_monitor.e && !t_monitor.f)
+                        mn.cp_occupancy = 0;
+                    else if (t_monitor.f && !t_monitor.e)
+                        mn.cp_occupancy = 8;
+                    else
+                        mn.cp_occupancy = 1;
+                    
+                    mn.cp_operation = {t_monitor.wrt_en, t_monitor.rd_en};
+                    mn.cp_reset = t_monitor.rst;
+
+                    mn.cp_wrt_en = t_monitor.wrt_en;
+                    mn.cp_rd_en = t_monitor.rd_en;
+                    mn.cp_f = t_monitor.f;
+                    mn.cp_e = t_monitor.e;
+
+                    mn.cg.sample();
+
                     mn.m2s.put (t_monitor);
                     t_monitor.display ("Monitor");
                 end
@@ -311,6 +384,7 @@ module FIFO_tb_sv;
         join
 
         sb.report();
+        $display ("Coverage: %0.2f%%", mn.cg.get_coverage());
 
         #100;
         $finish;
