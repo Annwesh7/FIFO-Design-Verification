@@ -304,6 +304,84 @@ module FIFO_tb_sv;
         rst = 1'b1;
     endtask
 
+    //Assertions
+    //Property1: The empty and full flags should be mutually exclusive, they cannot be 1 simultaneously
+    property flags_mutually_exclusive;
+        @ (posedge clk) disable iff (!rst) !(f && e);
+    endproperty
+
+    flag_mutual_check: assert property (flags_mutually_exclusive)
+    else
+        $error ("The flags are not mutually exclusive");
+
+    /*
+    The above assertion has a benign bug. Both f and e store an unknown value X for the first few iterations.
+    When the condition is checked, both e and f turn out to be equal and as a result the assertion fails and
+    the error message is displayed. Once reset is asserted, e = 1 and f= 0 and from that point onwards the
+    the assertion's condition behaves properly i.e. e and f cannot be 1 at the same instant.
+    */
+
+    //Property2: No write should happen when f = 1
+    property no_write_when_full;
+        @ (posedge clk) disable iff (!rst) (((f) && (wrt_en) && ($past(rst))) |=> $stable(FIFO.write_pointer));
+    endproperty
+
+    no_writes_when_full_check: assert property (no_write_when_full)
+    else
+        $error ("Write happened when FIFO is full");
+
+    //Property 3: No read should happen when e = 1
+    property no_read_when_empty;
+        @ (posedge clk) disable iff (!rst) (((e) && (rd_en) && ($past(rst))) |=> ($stable(op) && $stable(FIFO.read_pointer)));
+    endproperty
+
+    no_reads_when_empty_check: assert property (no_read_when_empty)
+    else
+        $error ("Read happened when FIFO is empty");
+
+    //Property 4: A read produces the correct output the next cycle
+    property correct_output;
+        @ (posedge clk) disable iff (!rst) (((rd_en) && (!e) && ($past(rst))) |=> op == FIFO.memory_array[$past(FIFO.read_pointer[$clog2(n) - 1:0])]);
+    endproperty
+
+    correct_outputs_check: assert property (correct_output)
+    else
+        $error ("The output is not correct");
+
+    //Property 5: Pointer increment happens correctly
+    property read_pointer_increment;
+        @ (posedge clk) disable iff (!rst) (((rd_en) && (!e) && ($past(rst))) |=> FIFO.read_pointer == $past(FIFO.read_pointer) + 4'd1);
+    endproperty
+
+    read_pointer_increment_check: assert property (read_pointer_increment)
+    else
+        $error ("The read pointer is not incrementing correctly");
+
+    property write_pointer_increment;
+        @ (posedge clk) disable iff (!rst) (((wrt_en) && (!f) && ($past(rst))) |=> FIFO.write_pointer == $past(FIFO.write_pointer) + 4'd1);
+    endproperty
+
+    wrtite_pointer_increment_check: assert property (write_pointer_increment)
+    else
+        $error ("The write pointer is not incrementing correctly");
+    
+    //Property 6: Flags update correctly after a write or read
+    property empty_flag_update;
+        @ (posedge clk) disable iff (!rst) (((rd_en) && (!e) && (!wrt_en) && (FIFO.write_pointer - FIFO.read_pointer == 4'd1) && ($past(rst))) |=> (e == 1'b1));
+    endproperty
+
+    empty_flag_update_check: assert property (empty_flag_update)
+    else
+        $error ("Empty flag did not assert after reading the last item");
+
+    property full_flag_update;
+        @ (posedge clk) disable iff (!rst) (((wrt_en) && (!f) && (!rd_en) && (FIFO.write_pointer - FIFO.read_pointer == 4'd7) && ($past(rst))) |=> (f == 1'b1));
+    endproperty
+
+    full_flag_update_check: assert property (full_flag_update)
+    else
+        $error ("Full flag did not assert after writing the last input");
+
     initial
     begin
         //Declarations
