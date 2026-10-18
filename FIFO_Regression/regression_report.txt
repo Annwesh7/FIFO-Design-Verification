@@ -1,0 +1,2 @@
+Summary: 10/10 passed
+Coverage: mean=95.24%, min=95.24%, max=95.24%
