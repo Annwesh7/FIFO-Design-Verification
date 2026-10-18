@@ -392,6 +392,14 @@ module FIFO_tb_sv;
         Monitor mn;
         Scoreboard sb;
 
+        //For regression suite
+        int seed = 1;
+
+        //Initializing SV random generator with this seed
+        $srandom (seed);
+
+        $display ("Running with seed = %d", seed);
+
         //Initializing objects
         m = new ();
         m2s = new ();
