@@ -110,6 +110,34 @@ class AXI_MasterDriver;
 endclass
 
 class AXI_Monitor;
+    mailbox #(AXI_Transaction) m2s_slave;
+    mailbox #(AXI_Transaction) m2s_master;
+
+    function new (mailbox #(AXI_Transaction) m2s_slave, mailbox #(AXI_Transaction) m2s_master);
+    this.m2s_slave = m2s_slave;
+    this.m2s_master = m2s_master;
+    endfunction
+
+    task run ();
+    AXI_Transaction t;
+
+        forever
+        begin
+            @ (posedge clk);
+            if (s_tready && s_tvalid)
+            begin
+                t = new ();
+                t.op = s_tdata;
+                m2s_slave.put(t);
+            end
+            if (m_tready && m_tvalid)
+            begin
+                t = new ();
+                t.op = m_tdata;
+                m2s_master.put(t);
+            end
+        end
+    endtask
 endclass
 
 class AXI_Scoreboard;
