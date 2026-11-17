@@ -72,8 +72,39 @@ class AXI_SlaveDriver;
         while (!s_tready);
 
         //Release phase
-            s_tvalid = 0;
-            s_tdata = 0;
+        s_tvalid = 0;
+        s_tdata = 0;
+    end
+    endtask
+endclass
+
+class AXI_MasterDriver;
+    int num_transactions;
+    mailbox #(AXI_Transaction) g2md;
+
+    function new (int num_transactions, mailbox #(AXI_Transaction) g2md);
+    this.num_transactions = num_transactions;
+    this.g2md = g2md;
+    endfunction
+
+    task run ();
+    AXI_Transaction t;
+
+    for (int i = 0; i < num_transactions; i++)
+    begin
+        g2md.get(t);
+
+        //Backpressure phase to create intentional stalls making the FIFO to fill up and exercise m_tvalid stability
+        m_tready = 0;
+        repeat (t.m_tdelay) @ (posedge clk);
+
+        //Handshake phase
+        m_tready = 1;
+        do @ (posedge clk);
+        while (!m_tvalid);
+
+        //Release phase
+        m_tready = 0;
     end
     endtask
 endclass
