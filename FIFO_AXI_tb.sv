@@ -16,6 +16,31 @@ class AXI_Transaction;
 endclass
 
 class AXI_Generator;
+    int num_transactions;
+    mailbox #(AXI_Transaction) g2md;
+    mailbox #(AXI_Transaction) g2sd;
+
+    function new (int num_transactions, mailbox #(AXI_Transaction) g2md, mailbox #(AXI_Transaction) g2sd);
+        this.num_transactions = num_transactions;
+        this.g2md = g2md;
+        this.g2sd = g2sd;
+    endfunction
+
+    task run();
+        AXI_Transaction t;
+
+        for (int i = 0; i < num_transactions; i++)
+        begin
+            t = new();
+            if (t.randomize())
+            begin
+                g2md.put(t);
+                g2sd.put(t);
+            end
+            else
+                $display ("Randomization Failed at transaction %0d", i);
+        end
+    endtask
 endclass
 
 class AXI_Driver;
