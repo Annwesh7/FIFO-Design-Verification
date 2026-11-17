@@ -31,8 +31,8 @@ class AXI_Generator;
 
         for (int i = 0; i < num_transactions; i++)
         begin
-            t = new();
-            if (t.randomize())
+            t = new ();
+            if (t.randomize ())
             begin
                 g2md.put(t);
                 g2sd.put(t);
@@ -43,7 +43,39 @@ class AXI_Generator;
     endtask
 endclass
 
-class AXI_Driver;
+class AXI_SlaveDriver;
+    int num_transactions;
+    mailbox #(AXI_Transaction) g2sd;
+
+    function new (int num_transactions, mailbox #(AXI_Transaction) g2sd);
+    this.num_transactions = num_transactions;
+    this.g2sd = g2sd;
+    endfunction
+
+    task run ();
+    AXI_Transaction t;
+
+    for (int i = 0; i < num_transactions; i++)
+    begin
+        g2sd.get(t);
+        
+        //Idle phase
+        s_tvalid = 0;
+        repeat (t.s_tdelay) @ (posedge clk);
+
+        //Offer phase
+        s_tvalid = 1;
+        s_tdata = t.ip;
+
+        //Hold until handshake phase
+        do @ (posedge clk);
+        while (!s_tready);
+
+        //Release phase
+            s_tvalid = 0;
+            s_tdata = 0;
+    end
+    endtask
 endclass
 
 class AXI_Monitor;
