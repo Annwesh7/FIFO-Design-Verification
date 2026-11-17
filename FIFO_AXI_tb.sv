@@ -1,0 +1,28 @@
+class AXI_Transaction;
+    //Slave side stimulus
+    rand logic [7:0] ip;        //data to push in the FIFO
+    rand logic [7:0] s_tdelay;  //delay before asserting s_tvalid for handshake with s_tready
+
+    //Master side stimulus
+    rand logic [7:0] m_tdelay;        //delay to hold m_tready low before handshake with m_tvalid
+
+    //Observation
+    logic [7:0] op;             //output of wrapper seen by the monitor
+
+    //Constraints
+    //Declaring a range for the delays because any random delay would create long "no action" periods
+    constraint s_tdelay_range {s_tdelay inside {[0:3]};}
+    constraint m_tdelay_range {m_tdelay inside {[0:3]};}
+endclass
+
+class AXI_Generator;
+endclass
+
+class AXI_Driver;
+endclass
+
+class AXI_Monitor;
+endclass
+
+class AXI_Scoreboard;
+endclass
